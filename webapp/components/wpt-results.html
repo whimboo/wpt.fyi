@@ -228,6 +228,11 @@ found in the LICENSE file.
             type: Object,
             value: {}
           },
+          // Map of path name to manifest.
+          manifest: {
+            type: Object,
+            observer: 'refreshDisplayedNodes',
+          },
           displayedNodes: {
             type: Array,
             value: []
@@ -372,11 +377,11 @@ found in the LICENSE file.
       }
 
       async fetchManifest(path) {
-        if (!this.computePathIsATestFile(path)) {
-          return;
-        }
-        this.manifest = null; // Clear ASAP.
         this.manifest = await fetch(`/api/manifest?path=${path}`).then(r => r.json());
+      }
+
+      computeManifest(manifests, path) {
+        return (manifests || {})[path];
       }
 
       nodeSort(a, b) {
@@ -389,7 +394,7 @@ found in the LICENSE file.
         return 0;
       }
 
-      refreshDisplayedNodes() {
+      refreshDisplayedNodes(manifest) {
         /* Recomputes the list of displayed directories and test files. */
         const displayedNodeMap = new Map();
         const currentPathParts = this.splitPathIntoLinkedParts(this.path);
@@ -401,16 +406,30 @@ found in the LICENSE file.
             displayedNodeMap.set(dirPath, {isDir: isDir, results: {}});
           }
           let results = this.testFiles[testFileName];
-          Object.keys(results).forEach(resultURL => {
-            if (!(resultURL in displayedNodeMap.get(dirPath).results)) {
-              displayedNodeMap.get(dirPath).results[resultURL] = {passing: 0, total: 0};
-            }
-            displayedNodeMap.get(dirPath).results[resultURL].passing += results[resultURL][0];
-            displayedNodeMap.get(dirPath).results[resultURL].total += results[resultURL][1];
-          });
+          if (results) {
+            Object.keys(results).forEach(resultURL => {
+              if (!(resultURL in displayedNodeMap.get(dirPath).results)) {
+                displayedNodeMap.get(dirPath).results[resultURL] = {passing: 0, total: 0};
+              }
+              displayedNodeMap.get(dirPath).results[resultURL].passing += results[resultURL][0];
+              displayedNodeMap.get(dirPath).results[resultURL].total += results[resultURL][1];
+            });
+          }
         };
 
-        Object.keys(this.testFiles).forEach(testFileName => {
+        let paths = Object.keys(this.testFiles);
+        if (manifest) {
+          paths = [];
+          for (const files of TEST_TYPES.map(i => manifest.items[i]).filter(i => i)) {
+            for (const items of Object.values(files)) {
+              for (const item of items) {
+                paths.push(item[0]); // First item array value is url
+              }
+            }
+          }
+        }
+        console.log(paths);
+        paths.forEach(testFileName => {
           if (this.path !== '/' && !testFileName.startsWith(`${this.path}/`)) {
             return;
           }
