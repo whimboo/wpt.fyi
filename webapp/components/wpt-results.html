@@ -378,10 +378,6 @@ found in the LICENSE file.
         this.manifest = await fetch(`/api/manifest?path=${path}`).then(r => r.json());
       }
 
-      computeManifest(manifests, path) {
-        return (manifests || {})[path];
-      }
-
       nodeSort(a, b) {
         if (a.path < b.path) {
           return -1;
@@ -426,7 +422,6 @@ found in the LICENSE file.
             }
           }
         }
-        console.log(paths);
         paths.forEach(testFileName => {
           if (this.path !== '/' && !testFileName.startsWith(`${this.path}/`)) {
             return;
