@@ -208,7 +208,6 @@ found in the LICENSE file.
           path: {
             type: String,
             value: '/',
-            observer: 'fetchManifest',
           },
           pathIsATestFile: {
             type: Boolean,
@@ -247,6 +246,10 @@ found in the LICENSE file.
       ready() {
         super.ready();
         this.path = this.urlToResultsPath(window.location);
+      }
+
+      static get observers() {
+        return ['fetchManifest(path, testRunSHAs)'];
       }
 
       isInvalidDiffUse(diff, testRuns) {
@@ -374,8 +377,45 @@ found in the LICENSE file.
         this.refreshDisplayedNodes();
       }
 
-      async fetchManifest(path) {
-        this.manifest = await fetch(`/api/manifest?path=${path}`).then(r => r.json());
+      async fetchManifest(path, testRunSHAs) {
+        // Wait until we've fetched the test runs.
+        if (!testRunSHAs) {
+          return;
+        }
+        // Load a specific SHA if all the test runs are
+        let sha = null;
+        if (testRunSHAs.size === 1) {
+          sha = Array.from(testRunSHAs.values())[0];
+          if (this.manifest && this.manifest.path === path && this.manifest.sha.indexOf(sha) === 0) {
+            return; // Already is the loaded manifest.
+          }
+        }
+        let manifest = await this.fetchManifestForSHA(path, sha);
+        if (sha && !manifest) {
+          // Fall back to 'latest'
+          manifest = await this.fetchManifestForSHA(path, 'latest');
+        }
+        this.manifest = manifest;
+      }
+
+      async fetchManifestForSHA(path, sha) {
+        let params = '';
+        if (sha && sha !== 'latest') {
+          params = `?sha=${sha}`;
+        }
+        if (path && path !== '/') {
+          params = `${params ? '&' : '?'}path=${path}`;
+        }
+        return await fetch(`/api/manifest${params}`).then(
+          r => {
+            if (!r.ok) {
+              return null;
+            }
+            let manifest = r.json();
+            manifest.sha = r.headers['x-wpt-sha'];
+            manifest.path = path;
+            return manifest;
+          });
       }
 
       nodeSort(a, b) {

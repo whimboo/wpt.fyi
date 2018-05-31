@@ -30,7 +30,12 @@ found in the LICENSE file.
           },
           labels: {
             type: Array,
-          }
+          },
+          // All shas across the loaded runs.
+          testRunSHAs: {
+            type: Set,
+            computed: 'computeRunSHAs(testRuns)',
+          },
         };
       }
 
@@ -57,6 +62,13 @@ found in the LICENSE file.
           this.testRuns = flattened.concat(preloaded || []);
           this.testRunResources = null;
         }
+      }
+
+      computeRunSHAs(testRuns) {
+        if (!testRuns) {
+          return null;
+        }
+        return new Set(testRuns.map(r => r.revision));
       }
     }
 
