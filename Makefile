@@ -64,20 +64,24 @@ go_small_test: go_deps
 	cd $(WPTD_GO_PATH); go test -tags=small -v ./...
 
 go_medium_test: go_deps dev_appserver_deps
-	cd $(WPTD_GO_PATH); go test -tags=medium -v ./...
+	# Hack to work around https://github.com/golang/appengine/issues/136
+	cd $(GOPATH)/src/github.com/golang/protobuf; git checkout ac606b1
+	cd $(WPTD_GO_PATH); go test -tags=medium -v $(FLAGS) ./...
 
 go_large_test: go_webdriver_test
 
 integration_test: go_webdriver_test web_components_test
 
+go_webdriver_test: STAGING := false
 go_webdriver_test: go_deps xvfb firefox node-web-component-tester webserver_deps
-	$(START_XVFB)
+	if [ "$(USE_FRAME_BUFFER)" == "true" ]; then ($(START_XVFB)); fi
 	cd $(WPTD_PATH)webdriver; go test -v -tags=large \
 			--selenium_path=$(SELENIUM_SERVER_PATH) \
 			--firefox_path=$(FIREFOX_PATH) \
 			--geckodriver_path=$(GECKODRIVER_PATH) \
-			--frame_buffer=$(USE_FRAME_BUFFER)
-	$(STOP_XVFB)
+			--frame_buffer=$(USE_FRAME_BUFFER) \
+			--staging=$(STAGING)
+	if [[ "$(USE_FRAME_BUFFER)" == "true" ]]; then $(STOP_XVFB); fi
 
 web_components_test: xvfb firefox chrome node-web-component-tester webserver_deps
 	$(START_XVFB)
@@ -113,7 +117,9 @@ firefox: browser_deps
 browser_deps: wget java
 	sudo apt-get install --assume-yes --no-install-suggests $$(apt-cache depends firefox-esr chromedriver |  grep Depends | sed "s/.*ends:\ //" | tr '\n' ' ')
 
-go_deps: git gcloud $(GO_FILES)
+go_deps: gcloud go_packages $(GO_FILES)
+
+go_packages: git
 	cd $(WPTD_GO_PATH); go get -t -tags="small medium large" ./...
 
 golint_deps: git go_deps
