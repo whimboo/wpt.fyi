@@ -342,6 +342,33 @@ def prepare_labels(report, labels_str, uploader):
     return sorted(labels)
 
 
+def find_test_run(report, raw_results_gcs_path):
+    """Finds the TestRun for the given report.
+
+    Using the /api/runs endpoint.
+
+    Args:
+        report: A WPTReport.
+        raw_results_gcs_path: The GCS path to the raw full report.
+            (e.g. '/wptd-results/[full SHA]/chrome_62.0_linux/report.json')
+
+    Return:
+        The ID of the test run, or None if not found.
+    """
+    response = requests.get(
+        config.project_baseurl() + '/api/runs',
+        params={
+            'product': report.run_info['product'],
+            'sha': report.run_info['revision'][:10],
+        }
+    )
+    results = response.json()
+    for run in results:
+        if run['raw_results_url'] == GCS_PUBLIC_DOMAIN + raw_results_gcs_path:
+            return run['id']
+    return None
+
+
 def create_test_run(report, labels_str, uploader, secret,
                     results_gcs_path, raw_results_gcs_path):
     """Creates a TestRun on the dashboard.

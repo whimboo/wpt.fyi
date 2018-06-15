@@ -137,6 +137,8 @@ def task_handler():
         report = wptreport.WPTReport()
         report.load_json(temp)
 
+    resp = "{} results loaded from {}\n".format(len(report.results), gcs_path)
+
     # To be deprecated once all reports have all the required metadata.
     report.update_metadata(
         revision=params.get('revision'),
@@ -149,13 +151,17 @@ def task_handler():
     revision = report.run_info['revision']
     # For consistency, use underscores in wptd-results.
     product = report.product_id('_', sanitize=True)
-
-    resp = "{} results loaded from {}\n".format(len(report.results), gcs_path)
-
     raw_results_gcs_path = '/{}/{}/{}/report.json'.format(
         config.raw_results_bucket(), revision, product)
-    gsutil.copy('gs:/' + gcs_path, 'gs:/' + raw_results_gcs_path)
 
+    test_run_id = wptreport.find_test_run(report, raw_results_gcs_path)
+    if test_run_id:
+        message = "TestRun {} already exists.".format(test_run_id)
+        app.logger.warn(message)
+        resp += message
+        return resp, 200
+
+    gsutil.copy('gs:/' + gcs_path, 'gs:/' + raw_results_gcs_path)
     tempdir = tempfile.mkdtemp()
     try:
         report.populate_upload_directory(output_dir=tempdir)
@@ -177,7 +183,7 @@ def task_handler():
     wptreport.create_test_run(report, labels, uploader, upload_token,
                               results_gcs_path, raw_results_gcs_path)
 
-    return resp
+    return resp, 201  # 201 Created
 
 
 # Run the script directly locally to start Flask dev server.
